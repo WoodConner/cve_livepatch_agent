@@ -13,9 +13,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from cve_query import CVEQuery
-from patch_rewriter import PatchRewriter
-from qemu_manager import QEMUManager
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from agent.cve_query import CVEQuery
+from agent.patch_rewriter import PatchRewriter
+from agent.qemu_manager import QEMUManager
 from tools.kpatch_wrapper import KpatchWrapper
 
 logger = logging.getLogger(__name__)
@@ -404,6 +407,9 @@ def main():
     args = parser.parse_args()
 
     # 配置日志
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
