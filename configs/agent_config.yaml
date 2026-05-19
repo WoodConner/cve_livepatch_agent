@@ -1,0 +1,42 @@
+# CVE 查询配置
+cve_query:
+  cache_dir: data/cve_cache
+  linux_repo_path: data/linux
+  nvd_api_key: ""  # 可选，提高查询速率
+
+# 补丁改写配置
+patch_rewriter:
+  llm:
+    api_key: ${DASHSCOPE_API_KEY}  # 从环境变量读取
+    api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-max
+    temperature: 0.7
+    max_tokens: 4096
+
+# QEMU 虚拟机配置
+qemu:
+  vm_name: anolis-livepatch
+  image_path: qemu/images/anolis.qcow2
+  memory: 4G
+  cpus: 4
+  ssh_port: 2222
+  ssh_user: root
+  ssh_password: anolis
+  ssh_key_path: qemu/ssh_keys/id_rsa
+
+# 内核配置
+kernel_version: 6.6.102-5.2.an23
+kernel_src_path: /root/kernel-source  # 虚拟机内路径
+work_dir: /root/livepatch_work  # 虚拟机内工作目录
+
+# 构建配置
+max_retry_rounds: 5
+timeout_per_round: 600  # 秒
+
+# 输出配置
+output_dir: logs/reports
+save_intermediate_results: true
+
+# 记忆系统配置（可选）
+enable_memory: false
+memory_path: ./memory_data
