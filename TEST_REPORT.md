@@ -55,7 +55,7 @@
 **测试项**: 使用 Claude API 改写补丁以满足 kpatch 约束
 
 **配置**:
-- API Base URL: https://cc-vibe.com
+- API Base URL: ${ANTHROPIC_BASE_URL} (从环境变量读取)
 - Model: claude-opus-4-7
 - Temperature: 0.7
 - Max Tokens: 4096
