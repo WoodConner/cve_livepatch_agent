@@ -1,0 +1,50 @@
+#!/usr/bin/expect -f
+
+set timeout 3600
+set vm_image "/home/wood/cve_livepatch_agent/qemu/images/anolis.qcow2"
+set iso_file "/home/wood/cve_livepatch_agent/data/anolis_packages/AnolisOS-23.4-x86_64-dvd.iso"
+set qemu_bin "/usr/local/qemu/bin/qemu-system-x86_64"
+
+# 启动 QEMU
+spawn $qemu_bin \
+    -name anolis-install \
+    -m 4G \
+    -smp 4 \
+    -hda $vm_image \
+    -cdrom $iso_file \
+    -boot d \
+    -net nic \
+    -net user,hostfwd=tcp::2222-:22 \
+    -nographic \
+    -serial mon:stdio
+
+# 等待安装菜单
+expect {
+    "Press the" {
+        send "\r"
+        exp_continue
+    }
+    "Installation" {
+        # 进入安装界面
+        sleep 2
+    }
+    timeout {
+        puts "Timeout waiting for installation menu"
+        exit 1
+    }
+}
+
+# 等待安装完成（这可能需要很长时间）
+expect {
+    "Installation complete" {
+        puts "Installation completed successfully"
+    }
+    "Reboot" {
+        puts "Installation finished, rebooting"
+    }
+    timeout {
+        puts "Installation in progress..."
+    }
+}
+
+interact

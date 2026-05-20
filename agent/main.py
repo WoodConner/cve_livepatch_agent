@@ -9,6 +9,8 @@ import logging
 import yaml
 import json
 import sys
+import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -36,7 +38,10 @@ class LivepatchAgent:
         """
         # 加载配置
         with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+            config_content = f.read()
+            # 替换环境变量
+            config_content = self._expand_env_vars(config_content)
+            self.config = yaml.safe_load(config_content)
 
         # 初始化各模块
         self.cve_query = CVEQuery(self.config.get('cve_query', {}))
@@ -52,6 +57,22 @@ class LivepatchAgent:
 
         # 结果统计
         self.results = []
+
+    def _expand_env_vars(self, content: str) -> str:
+        """
+        展开配置文件中的环境变量
+
+        Args:
+            content: 配置文件内容
+
+        Returns:
+            展开后的内容
+        """
+        def replace_env_var(match):
+            var_name = match.group(1)
+            return os.environ.get(var_name, match.group(0))
+
+        return re.sub(r'\$\{([^}]+)\}', replace_env_var, content)
 
     def process_cve(self, cve_id: str) -> Dict:
         """

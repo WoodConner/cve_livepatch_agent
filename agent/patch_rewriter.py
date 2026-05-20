@@ -8,7 +8,7 @@ import logging
 import json
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-import openai
+from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,13 @@ class PatchRewriter:
         self.config = config
         self.llm_config = config.get('llm', {})
 
-        # 配置 OpenAI 客户端（兼容百炼平台）
-        self.client = openai.OpenAI(
+        # 配置 Anthropic 客户端
+        self.client = Anthropic(
             api_key=self.llm_config.get('api_key', ''),
-            base_url=self.llm_config.get('api_base', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
+            base_url=self.llm_config.get('api_base', 'https://api.anthropic.com')
         )
 
-        self.model = self.llm_config.get('model', 'qwen-max')
+        self.model = self.llm_config.get('model', 'claude-opus-4-7')
         self.temperature = self.llm_config.get('temperature', 0.7)
         self.max_tokens = self.llm_config.get('max_tokens', 4096)
 
@@ -122,7 +122,10 @@ class PatchRewriter:
 
         # 添加错误信息
         if error_analysis.get('error_category'):
-            prompt += f"- **错误类别**: {error_analysis['error_category'].value}\n"
+            error_cat = error_analysis['error_category']
+            # 如果是枚举类型，获取其 value；否则直接使用字符串
+            error_cat_str = error_cat.value if hasattr(error_cat, 'value') else str(error_cat)
+            prompt += f"- **错误类别**: {error_cat_str}\n"
 
         prompt += f"- **严重程度**: {error_analysis.get('severity', 'unknown')}\n"
 
@@ -212,24 +215,21 @@ class PatchRewriter:
         try:
             logger.debug("调用 LLM...")
 
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                system="你是一个 Linux 内核热补丁专家，精通 kpatch 工具和内核开发。",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一个 Linux 内核热补丁专家，精通 kpatch 工具和内核开发。"
-                    },
                     {
                         "role": "user",
                         "content": prompt
                     }
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                ]
             )
 
-            if response.choices and len(response.choices) > 0:
-                content = response.choices[0].message.content
+            if response.content and len(response.content) > 0:
+                content = response.content[0].text
                 logger.debug(f"LLM 响应长度: {len(content)} 字符")
                 return content
 
@@ -294,12 +294,15 @@ class PatchRewriter:
         attempt: int
     ):
         """记录改写历史"""
+        error_cat = error_analysis.get('error_category')
+        error_cat_str = error_cat.value if hasattr(error_cat, 'value') else str(error_cat) if error_cat else None
+
         record = {
             'attempt': attempt,
             'original_patch': original,
             'rewritten_patch': rewritten,
             'explanation': explanation,
-            'error_category': error_analysis.get('error_category').value if error_analysis.get('error_category') else None,
+            'error_category': error_cat_str,
             'error_severity': error_analysis.get('severity'),
         }
 

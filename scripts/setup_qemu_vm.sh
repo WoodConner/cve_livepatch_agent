@@ -15,13 +15,16 @@ echo "========================================="
 echo ""
 
 # 检查 QEMU 是否安装
-if ! command -v qemu-system-x86_64 &> /dev/null; then
-    echo "错误: 未安装 QEMU"
-    echo "请运行: sudo apt-get install qemu-system-x86 qemu-utils"
+QEMU_BIN="/usr/local/qemu/bin/qemu-system-x86_64"
+QEMU_IMG="/usr/local/qemu/bin/qemu-img"
+
+if [ ! -f "${QEMU_BIN}" ]; then
+    echo "错误: 未找到 QEMU"
+    echo "请确保 QEMU 已安装到 /usr/local/qemu"
     exit 1
 fi
 
-echo "✓ QEMU 已安装"
+echo "✓ QEMU 已安装: ${QEMU_BIN}"
 
 # 创建目录
 mkdir -p "${IMAGE_DIR}"
@@ -45,7 +48,7 @@ VM_IMAGE="${IMAGE_DIR}/anolis.qcow2"
 if [ ! -f "${VM_IMAGE}" ]; then
     echo ""
     echo "创建虚拟机磁盘镜像..."
-    qemu-img create -f qcow2 "${VM_IMAGE}" 40G
+    ${QEMU_IMG} create -f qcow2 "${VM_IMAGE}" 40G
     echo "✓ 虚拟机磁盘镜像已创建: ${VM_IMAGE}"
 
     echo ""
@@ -56,7 +59,7 @@ if [ ! -f "${VM_IMAGE}" ]; then
     echo "   wget https://mirrors.openanolis.cn/anolis/23.4/isos/GA/x86_64/AnolisOS-23.4-x86_64-dvd.iso"
     echo ""
     echo "2. 启动虚拟机进行安装："
-    echo "   qemu-system-x86_64 \\"
+    echo "   ${QEMU_BIN} \\"
     echo "     -name anolis-livepatch \\"
     echo "     -m 4G \\"
     echo "     -smp 4 \\"
@@ -132,7 +135,7 @@ cat > "${QEMU_DIR}/start_vm.sh" << EOF
 #!/bin/bash
 # 快速启动虚拟机
 
-qemu-system-x86_64 \\
+${QEMU_BIN} \\
     -name anolis-livepatch \\
     -m 4G \\
     -smp 4 \\

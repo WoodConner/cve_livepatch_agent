@@ -1,0 +1,37 @@
+#!/usr/bin/expect -f
+
+set timeout 3600
+set iso "/home/wood/cve_livepatch_agent/data/anolis_packages/AnolisOS-23.4-x86_64-dvd.iso"
+set disk "/home/wood/cve_livepatch_agent/qemu/images/anolis.qcow2"
+set qemu "/usr/local/qemu/bin/qemu-system-x86_64"
+
+log_file -a /home/wood/cve_livepatch_agent/logs/install_expect.log
+
+spawn $qemu \
+    -name "anolis-install" \
+    -m 4G \
+    -smp 4 \
+    -hda $disk \
+    -cdrom $iso \
+    -boot d \
+    -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+    -device e1000,netdev=net0 \
+    -nographic
+
+# 等待启动菜单
+expect {
+    "Press the" {
+        send "\r"
+        exp_continue
+    }
+    "Installation" {
+        puts "安装程序已启动"
+    }
+    timeout {
+        puts "等待超时"
+        exit 1
+    }
+}
+
+# 保持连接，等待安装完成
+expect eof
