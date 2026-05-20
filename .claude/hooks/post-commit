@@ -1,0 +1,50 @@
+#!/bin/bash
+# Post-commit hook: 自动生成提交报告和更新文档
+
+set -e
+
+echo "📝 Running post-commit tasks..."
+
+# 1. 生成提交统计
+echo "  → Generating commit statistics..."
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%B)
+FILES_CHANGED=$(git diff-tree --no-commit-id --name-only -r HEAD | wc -l)
+INSERTIONS=$(git diff HEAD^ HEAD --numstat | awk '{sum+=$1} END {print sum}')
+DELETIONS=$(git diff HEAD^ HEAD --numstat | awk '{sum+=$2} END {print sum}')
+
+cat > .claude/last_commit_stats.txt <<EOF
+Commit: $COMMIT_HASH
+Message: $COMMIT_MSG
+Files Changed: $FILES_CHANGED
+Insertions: +$INSERTIONS
+Deletions: -$DELETIONS
+Date: $(date)
+EOF
+
+# 2. 自动更新 CHANGELOG（如果存在）
+if [ -f "CHANGELOG.md" ]; then
+    echo "  → Updating CHANGELOG.md..."
+    # 在 CHANGELOG 顶部添加新条目
+    {
+        echo "## [$COMMIT_HASH] - $(date +%Y-%m-%d)"
+        echo ""
+        echo "$COMMIT_MSG"
+        echo ""
+        cat CHANGELOG.md
+    } > CHANGELOG.md.tmp
+    mv CHANGELOG.md.tmp CHANGELOG.md
+fi
+
+# 3. 检查是否需要更新版本号
+if git diff HEAD^ HEAD --name-only | grep -q "agent/\|tools/"; then
+    echo "⚠️  Core modules changed. Consider updating version number."
+fi
+
+# 4. 运行快速测试（如果有）
+if [ -f "test_simple.py" ]; then
+    echo "  → Running quick tests..."
+    python3 test_simple.py &>/dev/null && echo "✅ Tests passed" || echo "⚠️  Tests failed"
+fi
+
+echo "✅ Post-commit tasks completed!"

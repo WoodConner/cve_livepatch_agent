@@ -1,0 +1,60 @@
+#!/bin/bash
+# Pre-commit hook: 自动检查和格式化代码
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. 检查是否有敏感信息泄露
+echo "  → Checking for sensitive information..."
+if git diff --cached --name-only | xargs grep -l "sk-ant-\|sk-[a-zA-Z0-9]\{20,\}" 2>/dev/null; then
+    echo "❌ Error: Found potential API keys in staged files!"
+    echo "   Please remove sensitive information before committing."
+    exit 1
+fi
+
+# 2. 检查 Python 语法错误
+echo "  → Checking Python syntax..."
+for file in $(git diff --cached --name-only --diff-filter=ACM | grep '\.py$'); do
+    if [ -f "$file" ]; then
+        python3 -m py_compile "$file" 2>/dev/null || {
+            echo "❌ Syntax error in $file"
+            exit 1
+        }
+    fi
+done
+
+# 3. 运行 Python 代码格式化（如果安装了 black）
+if command -v black &> /dev/null; then
+    echo "  → Formatting Python code with black..."
+    git diff --cached --name-only --diff-filter=ACM | grep '\.py$' | xargs black --quiet 2>/dev/null || true
+fi
+
+# 4. 检查 YAML 文件语法
+echo "  → Checking YAML syntax..."
+for file in $(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(yaml|yml)$'); do
+    if [ -f "$file" ]; then
+        python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null || {
+            echo "❌ YAML syntax error in $file"
+            exit 1
+        }
+    fi
+done
+
+# 5. 更新 requirements.txt（如果有新的导入）
+echo "  → Checking Python imports..."
+if git diff --cached --name-only | grep -q '\.py$'; then
+    # 提取所有 import 语句
+    imports=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' | xargs grep -h "^import \|^from " 2>/dev/null | sed 's/import //g' | sed 's/from //g' | awk '{print $1}' | sort -u)
+
+    # 检查是否在 requirements.txt 中
+    if [ -f "requirements.txt" ]; then
+        for pkg in $imports; do
+            if ! grep -q "^$pkg" requirements.txt 2>/dev/null; then
+                echo "⚠️  Warning: Package '$pkg' might be missing from requirements.txt"
+            fi
+        done
+    fi
+fi
+
+echo "✅ Pre-commit checks passed!"

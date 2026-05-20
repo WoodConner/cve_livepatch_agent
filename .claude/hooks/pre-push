@@ -1,0 +1,62 @@
+#!/bin/bash
+# Pre-push hook: 推送前的最终检查
+
+set -e
+
+echo "🚀 Running pre-push checks..."
+
+# 1. 确保所有测试通过
+echo "  → Running test suite..."
+if [ -f "test_workflow_no_vm.py" ]; then
+    python3 test_workflow_no_vm.py &>/dev/null || {
+        echo "❌ Tests failed! Please fix before pushing."
+        exit 1
+    }
+fi
+
+# 2. 检查是否有未提交的更改
+if ! git diff-index --quiet HEAD --; then
+    echo "⚠️  Warning: You have uncommitted changes"
+    read -p "Continue pushing? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# 3. 检查分支名称
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$BRANCH" == "main" ]] || [[ "$BRANCH" == "master" ]]; then
+    echo "⚠️  Pushing to $BRANCH branch"
+    read -p "Are you sure? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# 4. 检查提交消息质量
+LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+if [ ${#LAST_COMMIT_MSG} -lt 10 ]; then
+    echo "⚠️  Warning: Commit message is too short"
+fi
+
+# 5. 检查是否有大文件
+echo "  → Checking for large files..."
+LARGE_FILES=$(git diff --cached --name-only | xargs ls -lh 2>/dev/null | awk '$5 ~ /M$/ && $5+0 > 10 {print $9, $5}')
+if [ ! -z "$LARGE_FILES" ]; then
+    echo "⚠️  Warning: Large files detected:"
+    echo "$LARGE_FILES"
+fi
+
+# 6. 验证 requirements.txt 是最新的
+if [ -f "requirements.txt" ]; then
+    echo "  → Verifying requirements.txt..."
+    pip freeze | grep -E "anthropic|pyyaml|requests" > /tmp/current_deps.txt
+    if ! diff -q requirements.txt /tmp/current_deps.txt &>/dev/null; then
+        echo "⚠️  Warning: requirements.txt might be outdated"
+    fi
+    rm -f /tmp/current_deps.txt
+fi
+
+echo "✅ Pre-push checks passed!"

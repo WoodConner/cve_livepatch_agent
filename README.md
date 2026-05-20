@@ -47,6 +47,33 @@
 - **编程语言**: Python 3.10+
 - **依赖**: anthropic, pyyaml, requests
 
+## 自动化工具（Hooks & Skills）
+
+本项目集成了类似 Claude Code 的自动化系统，包括 Git hooks 和专用 skills。详细文档请参考 [.claude/README.md](.claude/README.md)。
+
+### 快速开始
+
+```bash
+# 1. 检查环境
+.claude/skills/env-check
+
+# 2. 分析 CVE
+.claude/skills/cve-analyze CVE-2024-26581
+
+# 3. 验证补丁
+.claude/skills/patch-verify data/cve_cache/CVE-2024-26581.patch
+
+# 4. 安装 Git hooks（可选）
+ln -sf ../../.claude/hooks/pre-commit .git/hooks/pre-commit
+ln -sf ../../.claude/hooks/post-commit .git/hooks/post-commit
+ln -sf ../../.claude/hooks/pre-push .git/hooks/pre-push
+```
+
+### 可用工具
+
+- **Hooks**: pre-commit（代码检查）、post-commit（统计生成）、pre-push（测试验证）
+- **Skills**: cve-analyze（CVE 分析）、patch-verify（补丁验证）、env-check（环境检查）
+
 ## 环境要求
 
 ### 系统要求

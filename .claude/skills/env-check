@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""
+Skill: 环境检查
+检查开发环境是否满足项目要求
+"""
+
+import sys
+import os
+import subprocess
+import shutil
+from pathlib import Path
+
+
+def check_command(cmd, version_flag='--version', required_version=None):
+    """检查命令是否存在及版本"""
+    if not shutil.which(cmd):
+        return False, None, f"未安装"
+
+    try:
+        result = subprocess.run(
+            [cmd, version_flag],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        version_output = result.stdout + result.stderr
+
+        if required_version and required_version not in version_output:
+            return True, version_output.split('\n')[0], f"版本可能不符合要求"
+
+        return True, version_output.split('\n')[0], "OK"
+    except Exception as e:
+        return True, None, f"检查失败: {e}"
+
+
+def check_python_package(package, min_version=None):
+    """检查 Python 包是否安装"""
+    try:
+        import importlib
+        mod = importlib.import_module(package)
+        version = getattr(mod, '__version__', 'unknown')
+
+        if min_version and version != 'unknown':
+            from packaging import version as pkg_version
+            if pkg_version.parse(version) < pkg_version.parse(min_version):
+                return True, version, f"版本过低（需要 >= {min_version}）"
+
+        return True, version, "OK"
+    except ImportError:
+        return False, None, "未安装"
+
+
+def check_file_exists(path, description):
+    """检查文件或目录是否存在"""
+    p = Path(path)
+    if p.exists():
+        if p.is_file():
+            size = p.stat().st_size
+            return True, f"{size} bytes", "OK"
+        elif p.is_dir():
+            count = len(list(p.iterdir()))
+            return True, f"{count} items", "OK"
+    return False, None, "不存在"
+
+
+def main():
+    print("🔍 环境检查")
+    print("=" * 70)
+
+    all_ok = True
+
+    # 1. 系统工具
+    print("\n[1/5] 系统工具")
+    tools = [
+        ('git', '--version', None),
+        ('gcc', '--version', None),
+        ('make', '--version', None),
+        ('qemu-system-x86_64', '--version', '9.0'),
+        ('kpatch', '--version', '0.9'),
+    ]
+
+    for tool_info in tools:
+        tool = tool_info[0]
+        exists, version, status = check_command(*tool_info)
+
+        if exists:
+            status_icon = "✅" if status == "OK" else "⚠️ "
+            print(f"  {status_icon} {tool:25} {version or ''}")
+            if status != "OK":
+                print(f"     └─ {status}")
+                all_ok = False
+        else:
+            print(f"  ❌ {tool:25} {status}")
+            all_ok = False
+
+    # 2. Python 环境
+    print("\n[2/5] Python 环境")
+    print(f"  ✅ Python 版本:            {sys.version.split()[0]}")
+
+    packages = [
+        ('anthropic', '0.18.0'),
+        ('yaml', None),
+        ('requests', None),
+    ]
+
+    for pkg, min_ver in packages:
+        exists, version, status = check_python_package(pkg, min_ver)
+
+        if exists:
+            status_icon = "✅" if status == "OK" else "⚠️ "
+            print(f"  {status_icon} {pkg:25} {version}")
+            if status != "OK":
+                print(f"     └─ {status}")
+                all_ok = False
+        else:
+            print(f"  ❌ {pkg:25} {status}")
+            all_ok = False
+
+    # 3. 环境变量
+    print("\n[3/5] 环境变量")
+    env_vars = [
+        ('ANTHROPIC_AUTH_TOKEN', True),
+        ('ANTHROPIC_BASE_URL', False),
+    ]
+
+    for var, required in env_vars:
+        value = os.environ.get(var)
+        if value:
+            # 隐藏敏感信息
+            display_value = value[:10] + '...' if len(value) > 10 else value
+            print(f"  ✅ {var:25} {display_value}")
+        else:
+            if required:
+                print(f"  ❌ {var:25} 未设置（必需）")
+                all_ok = False
+            else:
+                print(f"  ⚠️  {var:25} 未设置（可选）")
+
+    # 4. 项目文件
+    print("\n[4/5] 项目文件")
+    files = [
+        ('configs/agent_config.yaml', '配置文件'),
+        ('agent/main.py', '主程序'),
+        ('agent/cve_query.py', 'CVE 查询模块'),
+        ('agent/patch_rewriter.py', '补丁改写模块'),
+        ('requirements.txt', '依赖列表'),
+    ]
+
+    for path, desc in files:
+        exists, info, status = check_file_exists(path, desc)
+
+        if exists:
+            print(f"  ✅ {desc:25} {info}")
+        else:
+            print(f"  ❌ {desc:25} {status}")
+            all_ok = False
+
+    # 5. 内核文件
+    print("\n[5/5] 内核文件")
+    kernel_paths = [
+        ('/usr/src/kernels', '内核源码目录'),
+        ('/lib/modules', '内核模块目录'),
+    ]
+
+    for path, desc in kernel_paths:
+        exists, info, status = check_file_exists(path, desc)
+
+        if exists:
+            print(f"  ✅ {desc:25} {info}")
+        else:
+            print(f"  ⚠️  {desc:25} {status}")
+
+    # 总结
+    print("\n" + "=" * 70)
+    if all_ok:
+        print("✅ 环境检查通过！所有必需组件已就绪。")
+        return 0
+    else:
+        print("⚠️  环境检查发现问题，请根据上述提示修复。")
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
